@@ -86,7 +86,7 @@ class Game:
         new_reward = reward
         new_line = line.copy()
         for group in burstable:
-            if addition in range(group.span()[0], group.span()[1] + 1):
+            if addition in range(group.span()[0], group.span()[1]):
                 r_num = random.random()
                 if r_num < self._color_pop_prob[line[group.start()]]:
                     new_reward += (self._color_pop_reward['3_pop'][line[group.start()]] +
