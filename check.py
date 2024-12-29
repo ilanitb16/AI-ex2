@@ -29,9 +29,9 @@ example = {
 def main():
     # debug_mode = False
     debug_mode = True
-    # game = zuma.create_zuma_game((200, [1, 2, 3, 3, 3, 4, 2, 1, 2, 3, 4, 4], example, debug_mode))
-    game = zuma.create_zuma_game((20,  [1, 2, 3, 3, 3, 4, 2, 1, 2, 3, 4, 4], example, debug_mode))
-    # game = zuma.create_zuma_game((20, [1, 1], example, debug_mode))
+    game = zuma.create_zuma_game((200, [1, 2, 3, 3, 3, 4, 2, 1, 2, 3, 4, 4], example, debug_mode))
+    # game = zuma.create_zuma_game((20,  [1, 2, 3, 3, 3, 4, 2, 1, 2, 3, 4, 4], example, debug_mode))
+    game = zuma.create_zuma_game((20, [1, 1], example, debug_mode))
     solve(game)
 
 

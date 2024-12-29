@@ -1,112 +1,156 @@
 import zuma
-import copy
-import math
-import random
+from typing import List, Tuple, Dict
+from collections import defaultdict
 
 id = ["322453200"]
 
 class Controller:
-    """This class is a controller for a Zuma game."""
+    """Controller for Zuma game using MDP principles."""
+
     def __init__(self, game: zuma.Game):
-        self.original_game = game
-        self.copy_game = copy.deepcopy(game)
-        self.model = self.copy_game.get_model()
+        """Initialize MDP controller with the game model."""
+        self.game = game
+        self.model = game.get_model()
+
+        # MDP Parameters
+        self.gamma = 0.9  # Discount factor
+        self.max_depth = 3  # Maximum look-ahead depth
+
+        # Cache model parameters
+        self.chosen_action_prob = self.model['chosen_action_prob']
+        self.next_color_dist = self.model['next_color_dist']
+        self.color_pop_prob = self.model['color_pop_prob']
+        self.color_pop_reward = self.model['color_pop_reward']
+        self.color_not_finished_punishment = self.model['color_not_finished_punishment']
         self.finished_reward = self.model['finished_reward']
-        self.not_finished_penalty = sum(self.model['color_not_finished_punishment'].values())
-        random.seed(self.model['seed'])
-        self.line1 = self.copy_game._line
-        self.maxSteps = self.copy_game._max_steps
 
-    def _simulate_action(self, game_state, action):
-        # Simulates a given action on a copy of the game state.
+        # Initialize value function
+        self.V = {}
 
-        sim_game = copy.deepcopy(game_state)
-        sim_game.submit_next_action(action)
-        new_line, _, new_steps, max_steps = sim_game.get_current_state()
-        new_reward = sim_game.get_current_reward()
-        finished = (new_steps == max_steps)
-        return sim_game, new_line, new_reward, finished
+    def calcReward(self, amount: int, color: int) -> float:
+        """Calculate reward for popping a group of balls."""
+        reward = self.game.get_model()['color_pop_reward']['3_pop'][color]
+        reward += (amount - 3) * self.game.get_model()['color_pop_reward']['extra_pop'][color]
+        return reward
 
-    def _heuristic_value(self, line, finished, reward, steps_remaining, max_steps):
-        # Computes a heuristic value for the given game state.
+    def _simulate_pop(self, line: List[int], action: int) -> Tuple[List[int], float]:
+        """Simulate ball popping and return new line and reward."""
+        if action == -1:
+            return line.copy(), 0
 
-        if finished:
-            return reward + self.finished_reward
+        reward = 0
+        sim_line = line.copy()
 
-        # Estimate penalties
-        color_counts = {}
-        for ball in line:
-            color_counts[ball] = color_counts.get(ball, 0) + 1
+        # Insert ball at action position
+        if 0 <= action <= len(sim_line):
+            ball = self.game.get_current_state()[1]
+            sim_line.insert(action, ball)
 
-        penalty_estimate = sum(
-            self.model['color_not_finished_punishment'][color] * count
-            for color, count in color_counts.items()
-        )
+            # Check for matches of 3 or more
+            i = max(0, action - 2)
+            while i < len(sim_line) - 2:
+                # Find sequence of same-colored balls
+                count = 1
+                color = sim_line[i]
+                j = i + 1
+                while j < len(sim_line) and sim_line[j] == color:
+                    count += 1
+                    j += 1
 
-        # Estimate potential pops
-        pop_value = 0
-        for ball, count in color_counts.items():
-            if count >= 3:
-                pop_value += self.model['color_pop_reward']['3_pop'][ball] * \
-                             self.model['color_pop_prob'][ball]
+                # # calculate probability for a potential explosion for 3ed ball
+                # if count == 2:
+                #     next_ball_prob = self.next_color_dist[color]
+                #     future_reward = next_ball_prob * (
+                #             self.color_pop_reward['3_pop'][color] +
+                #             (self.color_pop_prob[color] * self.color_pop_reward['extra_pop'][color])
+                #     )
+                #     reward += future_reward
 
-        # Dynamic weighting
-        penalty_weight = 0.4 if steps_remaining > 50 else 0.8 if steps_remaining > 10 else 1.2
-        future_value = reward + pop_value - penalty_weight * penalty_estimate
-        return future_value
+                if count >= 3:
+                    # Calculate pop probability and reward
+                    pop_prob = self.color_pop_prob[color]
+                    base_reward = self.color_pop_reward['3_pop'][color]
+                    extra_reward = (count - 3) * self.color_pop_reward['extra_pop'][color]
+                    # reward += pop_prob * (base_reward + extra_reward)
+                    reward += self.calcReward(count, color)
 
-    def _lookahead(self, game_state, depth):
-        # Recursively evaluates future game states up to a specified depth.
+                    # Remove matched balls
+                    sim_line[i:j] = []
+                    i = max(0, i - 2)  # Move back to check for new matches
+                else:
+                    i += 1
 
-        if depth == 0:
-            return 0
+        return sim_line, reward
 
-        _, _, steps, max_steps = game_state.get_current_state()
-        future_rewards = []
+    def evaluate_state(self, line: List[int], depth: int) -> float:
+        """Evaluate state value with limited depth.
+        line (List[int]): The current state of the game line (sequence of balls).
+        depth (int): The current depth in the lookahead process.
+        returns:The estimated value (a float) of the current game state,
+        combining immediate and discounted future rewards."""
 
-        for action in range(-1, len(game_state.get_current_state()[0]) + 1):
-            sim_game, new_line, new_reward, finished = self._simulate_action(game_state, action)
-            lookahead_reward = self._lookahead(sim_game, depth - 1)
-            future_rewards.append(new_reward + lookahead_reward)
+        # reached max depth or line is empty
+        if depth >= self.max_depth or not line:
+            if not line:
+                return self.finished_reward
+            return -sum(self.color_not_finished_punishment[color] * line.count(color)
+                        for color in set(line))
 
-        return max(future_rewards) if future_rewards else 0
+        max_value = float('-inf')
+        actions = list(range(-1, len(line) + 1))
 
-    def choose_next_action(self):
-        # Chooses the next optimal action based on heuristic evaluation and lookahead.
+        # Iterate Through All Actions:
+        for action in actions:
+            value = 0
+            # Get current ball
+            ball = self.game.get_current_state()[1]
 
-        line, current_ball, steps, max_steps = self.original_game.get_current_state()
-        steps_remaining = max_steps - steps
+            # Success probability for chosen action
+            prob = self.chosen_action_prob[ball] if action != -1 else 1.0
 
-        if current_ball is None:
-            current_ball = self.original_game.get_ball()
+            # Simulate action and get reward
+            new_line, reward = self._simulate_pop(line, action)
 
-        possible_actions = list(range(-1, len(line) + 1))
-        best_action = None
-        best_value = -math.inf
+            # Calculate value including future rewards
+            value = prob * (reward + self.gamma * self.evaluate_state(new_line, depth + 1))
+            # scaled by the discount factor (gamma), which reduces the importance of future rewards.
 
-        # Adjust lookahead depth dynamically
-        line_complexity = len(self.line1)
+            max_value = max(max_value, value)
 
-        if line_complexity >= 10 and self.maxSteps > 20:
-            lookahead_depth = 2 if steps_remaining > 10 else 1
-        elif line_complexity >= 10 and self.maxSteps == 20:
-            lookahead_depth = 3 if steps_remaining > 14 else 2
-        elif line_complexity <= 5:
-            lookahead_depth = 2 if steps_remaining > 10 else 1
-        else:
-            lookahead_depth = 1
+        return max_value
 
-        for action in possible_actions:
-            sim_game, new_line, new_reward, finished = self._simulate_action(
-                self.original_game, action
-            )
-            lookahead_value = self._lookahead(sim_game, depth=lookahead_depth)
-            action_value = self._heuristic_value(
-                new_line, finished, new_reward, steps_remaining, max_steps
-            ) + lookahead_value
+    def choose_next_action(self) -> int:
+        """Choose next action using limited-depth MDP evaluation."""
+        line, ball, steps, max_steps = self.game.get_current_state()
+        steps_remaining = max_steps - steps  # מחשבים את מספר הצעדים שנותרו
 
-            if action_value > best_value:
-                best_value = action_value
+        if steps >= max_steps:
+            return -1
+
+        # if steps_remaining > 40:
+        #     # חישוב שטחי במקרה של צעדים רבים
+        #     return max(
+        #         (action, self._simulate_pop(line, action)[1])  # פעולה ותגמול
+        #         for action in range(-1, len(line) + 1)
+        #     )[0]
+
+        actions = list(range(-1, len(line) + 1))
+        best_action = -1
+        best_value = float('-inf')
+
+        # Evaluate each action
+        for action in actions:
+            # Get success probability
+            prob = self.chosen_action_prob[ball] if action != -1 else 1.0
+
+            # Simulate action
+            new_line, reward = self._simulate_pop(line, action)
+
+            # Calculate value including future rewards
+            value = prob * (reward + self.gamma * self.evaluate_state(new_line, 1))
+
+            if value > best_value:
+                best_value = value
                 best_action = action
 
         return best_action
