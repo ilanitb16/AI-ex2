@@ -13,7 +13,7 @@ class Controller:
         self.model = game.get_model()
 
         # MDP Parameters
-        self.gamma = 0.9  # Discount factor
+        self.gamma = 0.8  # Discount factor
         self.max_depth = 3  # Maximum look-ahead depth
 
         # Cache model parameters
@@ -46,7 +46,7 @@ class Controller:
             ball = self.game.get_current_state()[1]
             sim_line.insert(action, ball)
 
-            # Check for matches of 3 or more
+            # Start checking from leftmost possible affected position
             i = max(0, action - 2)
             while i < len(sim_line) - 2:
                 # Find sequence of same-colored balls
@@ -56,15 +56,6 @@ class Controller:
                 while j < len(sim_line) and sim_line[j] == color:
                     count += 1
                     j += 1
-
-                # # calculate probability for a potential explosion for 3ed ball
-                # if count == 2:
-                #     next_ball_prob = self.next_color_dist[color]
-                #     future_reward = next_ball_prob * (
-                #             self.color_pop_reward['3_pop'][color] +
-                #             (self.color_pop_prob[color] * self.color_pop_reward['extra_pop'][color])
-                #     )
-                #     reward += future_reward
 
                 if count >= 3:
                     # Calculate pop probability and reward
@@ -126,13 +117,6 @@ class Controller:
 
         if steps >= max_steps:
             return -1
-
-        # if steps_remaining > 40:
-        #     # חישוב שטחי במקרה של צעדים רבים
-        #     return max(
-        #         (action, self._simulate_pop(line, action)[1])  # פעולה ותגמול
-        #         for action in range(-1, len(line) + 1)
-        #     )[0]
 
         actions = list(range(-1, len(line) + 1))
         best_action = -1
