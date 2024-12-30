@@ -14,9 +14,9 @@ class Controller:
         self.game = game
         self.model = game.get_model()
 
-        # MDP Parameters - adjusted for better rewards while maintaining performance
+        # MDP Parameters
         self.gamma = 0.8
-        self.max_depth = 2  # Keep depth 2 for performance but improve evaluation
+        self.max_depth = 2
 
         # Cache model parameters
         self.chosen_action_prob = self.model['chosen_action_prob']
@@ -67,7 +67,7 @@ class Controller:
                 if i < len(line) - 2:
                     potential_moves.add(i + 2)
 
-            # Look for potential sandwich positions (e.g., R_R where _ is insertion point)
+            # Look for same colored "sandwich" positions (e.g., B_B where _ is insertion point)
             if i > 0 and i < len(line) - 1 and line[i - 1] == line[i + 1]:
                 potential_moves.add(i)
 
@@ -82,7 +82,6 @@ class Controller:
 
         reward = 0
         sim_line = list(line_tuple)
-        chain_multiplier = 1.0  # Reward multiplier for chain reactions
 
         if 0 <= action <= len(sim_line):
             sim_line.insert(action, current_ball)
@@ -132,11 +131,11 @@ class Controller:
                 unique_colors = set(line_tuple)
                 self.color_sets[length][line_tuple] = unique_colors
 
-            # Improved terminal state evaluation
+            # terminal state calculation
             base_penalty = -sum(self.color_not_finished_punishment[color] * line_tuple.count(color)
                                 for color in unique_colors)
 
-            # Add bonus for potential future matches
+            # bonus for potential future matches
             future_potential = 0
             for i in range(len(line_tuple) - 1):
                 if line_tuple[i] == line_tuple[i + 1]:  # Adjacent same colors
