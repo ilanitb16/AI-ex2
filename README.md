@@ -47,3 +47,9 @@ game = zuma.create_zuma_game((20, [1, 2, 3, 3, 3, 4, 2, 1, 2, 3, 4, 4], example,
 - Preserve the included gameplay strategies and adapt your solution to maximize rewards and minimize penalties by game’s end.
 
 Ensure all development and testing comply with provided game constants, and do not modify any component beyond `ex2.py`. Submission should include only your solutions and method to maximize gameplay score with optimal gameplay via the MDP.
+
+
+## Test Results
+![image](https://github.com/user-attachments/assets/141b18d3-88e1-4667-a6dd-8df3a354cd4e)
+![image](https://github.com/user-attachments/assets/22b62312-0f21-44ab-8d7f-41f9f0e6c6b8)
+
